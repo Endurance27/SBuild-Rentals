@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, differenceInDays, addDays } from "date-fns";
 import { Calendar, Minus, Plus, X } from "lucide-react";
 import {
@@ -27,6 +28,7 @@ interface BookingDialogProps {
 }
 
 const BookingDialog = ({ item, open, onOpenChange }: BookingDialogProps) => {
+  const navigate = useNavigate();
   const [quantity, setQuantity] = useState(1);
   const [pickupDate, setPickupDate] = useState<Date>();
   const [returnDate, setReturnDate] = useState<Date>();
@@ -54,15 +56,17 @@ const BookingDialog = ({ item, open, onOpenChange }: BookingDialogProps) => {
   };
 
   const handleProceed = () => {
-    // TODO: Add to cart or proceed to checkout
-    console.log({
-      item,
+    if (!pickupDate || !returnDate) return;
+
+    const bookingItem = {
+      ...item,
       quantity,
-      pickupDate,
-      returnDate,
       rentalDays,
       totalPrice,
-    });
+    };
+
+    navigate("/checkout", { state: { item: bookingItem } });
+    onOpenChange(false);
   };
 
   const isValid = pickupDate && returnDate && quantity > 0 && rentalDays > 0;
