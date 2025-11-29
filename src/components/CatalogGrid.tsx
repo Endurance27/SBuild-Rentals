@@ -1,21 +1,36 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart } from "lucide-react";
 import { RentalItem } from "@/types/rental";
 import { rentalItems } from "@/data/rentalItems";
+import BookingDialog from "./BookingDialog";
 
 interface CatalogGridProps {
   category?: string;
-  onSelectItem?: (item: RentalItem) => void;
 }
 
-const CatalogGrid = ({ category, onSelectItem }: CatalogGridProps) => {
+const CatalogGrid = ({ category }: CatalogGridProps) => {
+  const [selectedItem, setSelectedItem] = useState<RentalItem | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   const filteredItems = category
     ? rentalItems.filter((item) => item.category === category)
     : rentalItems;
 
+  const handleSelectItem = (item: RentalItem) => {
+    setSelectedItem(item);
+    setDialogOpen(true);
+  };
+
   return (
+    <>
+      <BookingDialog
+        item={selectedItem}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {filteredItems.map((item) => (
         <Card
@@ -47,7 +62,7 @@ const CatalogGrid = ({ category, onSelectItem }: CatalogGridProps) => {
           <CardFooter>
             <Button
               className="w-full bg-gradient-warm hover:opacity-90 transition-opacity"
-              onClick={() => onSelectItem?.(item)}
+              onClick={() => handleSelectItem(item)}
             >
               <ShoppingCart className="mr-2 h-4 w-4" />
               Select Item
@@ -56,6 +71,7 @@ const CatalogGrid = ({ category, onSelectItem }: CatalogGridProps) => {
         </Card>
       ))}
     </div>
+    </>
   );
 };
 
