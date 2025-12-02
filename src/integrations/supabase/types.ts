@@ -14,16 +14,176 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      booking_items: {
+        Row: {
+          booking_id: string
+          daily_price: number
+          id: string
+          item_id: string | null
+          item_name: string
+          quantity: number
+          rental_days: number
+          subtotal: number
+        }
+        Insert: {
+          booking_id: string
+          daily_price: number
+          id?: string
+          item_id?: string | null
+          item_name: string
+          quantity: number
+          rental_days: number
+          subtotal: number
+        }
+        Update: {
+          booking_id?: string
+          daily_price?: number
+          id?: string
+          item_id?: string | null
+          item_name?: string
+          quantity?: number
+          rental_days?: number
+          subtotal?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "rental_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          created_at: string | null
+          customer_email: string
+          customer_name: string
+          customer_phone: string
+          delivery_address: string | null
+          id: string
+          pickup_date: string
+          pickup_method: Database["public"]["Enums"]["pickup_method"]
+          return_date: string
+          status: Database["public"]["Enums"]["booking_status"] | null
+          total_cost: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_email: string
+          customer_name: string
+          customer_phone: string
+          delivery_address?: string | null
+          id?: string
+          pickup_date: string
+          pickup_method?: Database["public"]["Enums"]["pickup_method"]
+          return_date: string
+          status?: Database["public"]["Enums"]["booking_status"] | null
+          total_cost: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_email?: string
+          customer_name?: string
+          customer_phone?: string
+          delivery_address?: string | null
+          id?: string
+          pickup_date?: string
+          pickup_method?: Database["public"]["Enums"]["pickup_method"]
+          return_date?: string
+          status?: Database["public"]["Enums"]["booking_status"] | null
+          total_cost?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      rental_items: {
+        Row: {
+          available_quantity: number
+          category: string
+          created_at: string | null
+          daily_price: number
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          available_quantity?: number
+          category: string
+          created_at?: string | null
+          daily_price: number
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          available_quantity?: number
+          category?: string
+          created_at?: string | null
+          daily_price?: number
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      booking_status: "pending" | "confirmed" | "completed" | "cancelled"
+      pickup_method: "self-pickup" | "delivery"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +310,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      booking_status: ["pending", "confirmed", "completed", "cancelled"],
+      pickup_method: ["self-pickup", "delivery"],
+    },
   },
 } as const
