@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { BookingItem } from "@/types/rental";
@@ -43,7 +44,9 @@ const Checkout = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
@@ -83,21 +86,62 @@ const Checkout = () => {
       return;
     }
 
-    // TODO: Send booking data to backend and generate invoice
-    console.log("Booking submitted:", {
-      ...bookingData,
-      ...formData,
-    });
+    setIsSubmitting(true);
 
-    toast({
-      title: "Booking submitted!",
-      description: "You will receive an invoice via email and SMS shortly.",
-    });
+    try {
+      // Insert booking into database
+      const { data: booking, error: bookingError } = await supabase
+        .from("bookings")
+        .insert({
+          customer_name: formData.customerName,
+          customer_email: formData.customerEmail,
+          customer_phone: formData.customerPhone,
+          pickup_method: formData.pickupMethod,
+          delivery_address: formData.pickupMethod === "delivery" ? formData.pickupLocation : null,
+          pickup_date: format(bookingData.pickupDate, "yyyy-MM-dd"),
+          return_date: format(bookingData.returnDate, "yyyy-MM-dd"),
+          total_cost: bookingData.totalPrice,
+          status: "pending",
+        })
+        .select()
+        .single();
 
-    // Navigate back to home after submission
-    setTimeout(() => {
-      navigate("/");
-    }, 2000);
+      if (bookingError) throw bookingError;
+
+      // Insert booking item
+      const { error: itemError } = await supabase
+        .from("booking_items")
+        .insert({
+          booking_id: booking.id,
+          item_id: bookingData.id,
+          item_name: bookingData.name,
+          quantity: bookingData.quantity,
+          daily_price: bookingData.dailyPrice,
+          rental_days: bookingData.rentalDays,
+          subtotal: bookingData.totalPrice,
+        });
+
+      if (itemError) throw itemError;
+
+      toast({
+        title: "Booking submitted!",
+        description: "You will receive an invoice via email shortly.",
+      });
+
+      // Navigate back to home after submission
+      setTimeout(() => {
+        navigate("/");
+      }, 2000);
+    } catch (error) {
+      console.error("Error submitting booking:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit booking. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -210,8 +254,9 @@ const Checkout = () => {
                   type="submit"
                   size="lg"
                   className="w-full bg-gradient-warm hover:opacity-90 transition-opacity"
+                  disabled={isSubmitting}
                 >
-                  Submit Booking & Get Invoice
+                  {isSubmitting ? "Submitting..." : "Submit Booking & Get Invoice"}
                 </Button>
               </form>
             </div>
@@ -260,13 +305,13 @@ const Checkout = () => {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Pickup Date:</span>
                       <span className="font-medium">
-                        {format(new Date(), "PPP")}
+                        {format(new Date(bookingData.pickupDate), "PPP")}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Return Date:</span>
                       <span className="font-medium">
-                        {format(new Date(), "PPP")}
+                        {format(new Date(bookingData.returnDate), "PPP")}
                       </span>
                     </div>
                   </div>

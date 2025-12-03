@@ -12,6 +12,8 @@ export interface BookingItem extends RentalItem {
   quantity: number;
   rentalDays: number;
   totalPrice: number;
+  pickupDate: Date;
+  returnDate: Date;
 }
 
 export interface Booking {

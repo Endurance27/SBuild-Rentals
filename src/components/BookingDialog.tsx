@@ -63,6 +63,8 @@ const BookingDialog = ({ item, open, onOpenChange }: BookingDialogProps) => {
       quantity,
       rentalDays,
       totalPrice,
+      pickupDate,
+      returnDate,
     };
 
     navigate("/checkout", { state: { item: bookingItem } });
