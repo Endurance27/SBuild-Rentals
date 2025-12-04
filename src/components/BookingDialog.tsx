@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { format, differenceInDays, addDays } from "date-fns";
-import { Calendar, Minus, Plus, X } from "lucide-react";
+import { Calendar, Minus, Plus, ShoppingCart } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +19,8 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { RentalItem } from "@/types/rental";
+import { useCart } from "@/contexts/CartContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface BookingDialogProps {
   item: RentalItem | null;
@@ -28,7 +29,8 @@ interface BookingDialogProps {
 }
 
 const BookingDialog = ({ item, open, onOpenChange }: BookingDialogProps) => {
-  const navigate = useNavigate();
+  const { addItem } = useCart();
+  const { toast } = useToast();
   const [quantity, setQuantity] = useState(1);
   const [pickupDate, setPickupDate] = useState<Date>();
   const [returnDate, setReturnDate] = useState<Date>();
@@ -55,10 +57,10 @@ const BookingDialog = ({ item, open, onOpenChange }: BookingDialogProps) => {
     setQuantity((prev) => Math.max(1, prev - 1));
   };
 
-  const handleProceed = () => {
+  const handleAddToCart = () => {
     if (!pickupDate || !returnDate) return;
 
-    const bookingItem = {
+    const cartItem = {
       ...item,
       quantity,
       rentalDays,
@@ -67,7 +69,16 @@ const BookingDialog = ({ item, open, onOpenChange }: BookingDialogProps) => {
       returnDate,
     };
 
-    navigate("/checkout", { state: { item: bookingItem } });
+    addItem(cartItem);
+    toast({
+      title: "Added to cart",
+      description: `${item.name} (${quantity}x) added to your cart`,
+    });
+    
+    // Reset form
+    setQuantity(1);
+    setPickupDate(undefined);
+    setReturnDate(undefined);
     onOpenChange(false);
   };
 
@@ -235,11 +246,12 @@ const BookingDialog = ({ item, open, onOpenChange }: BookingDialogProps) => {
               Cancel
             </Button>
             <Button
-              onClick={handleProceed}
+              onClick={handleAddToCart}
               disabled={!isValid}
               className="flex-1 bg-gradient-warm hover:opacity-90 transition-opacity"
             >
-              Proceed to Checkout
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              Add to Cart
             </Button>
           </div>
         </div>

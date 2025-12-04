@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { format, addDays } from "date-fns";
-import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,17 +10,12 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { BookingItem } from "@/types/rental";
-
-interface CheckoutState {
-  item: BookingItem;
-}
+import { useCart } from "@/contexts/CartContext";
 
 const Checkout = () => {
-  const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const bookingData = (location.state as CheckoutState)?.item;
+  const { items, removeItem, totalCost, clearCart } = useCart();
 
   const [formData, setFormData] = useState({
     customerName: "",
@@ -30,21 +25,32 @@ const Checkout = () => {
     pickupLocation: "",
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
-    if (!bookingData) {
+    if (items.length === 0) {
       navigate("/catalog");
     }
-  }, [bookingData, navigate]);
+  }, [items.length, navigate]);
 
-  if (!bookingData) {
+  if (items.length === 0) {
     return null;
   }
+
+  // Get the earliest pickup date and latest return date from all items
+  const pickupDate = items.reduce((earliest, item) => 
+    !earliest || item.pickupDate < earliest ? item.pickupDate : earliest, 
+    items[0]?.pickupDate
+  );
+  
+  const returnDate = items.reduce((latest, item) => 
+    !latest || item.returnDate > latest ? item.returnDate : latest, 
+    items[0]?.returnDate
+  );
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,9 +104,9 @@ const Checkout = () => {
           customer_phone: formData.customerPhone,
           pickup_method: formData.pickupMethod,
           delivery_address: formData.pickupMethod === "delivery" ? formData.pickupLocation : null,
-          pickup_date: format(bookingData.pickupDate, "yyyy-MM-dd"),
-          return_date: format(bookingData.returnDate, "yyyy-MM-dd"),
-          total_cost: bookingData.totalPrice,
+          pickup_date: format(pickupDate, "yyyy-MM-dd"),
+          return_date: format(returnDate, "yyyy-MM-dd"),
+          total_cost: totalCost,
           status: "pending",
         })
         .select()
@@ -108,27 +114,30 @@ const Checkout = () => {
 
       if (bookingError) throw bookingError;
 
-      // Insert booking item
-      const { error: itemError } = await supabase
-        .from("booking_items")
-        .insert({
-          booking_id: booking.id,
-          item_id: bookingData.id,
-          item_name: bookingData.name,
-          quantity: bookingData.quantity,
-          daily_price: bookingData.dailyPrice,
-          rental_days: bookingData.rentalDays,
-          subtotal: bookingData.totalPrice,
-        });
+      // Insert all booking items
+      const bookingItems = items.map((item) => ({
+        booking_id: booking.id,
+        item_id: item.id,
+        item_name: item.name,
+        quantity: item.quantity,
+        daily_price: item.dailyPrice,
+        rental_days: item.rentalDays,
+        subtotal: item.totalPrice,
+      }));
 
-      if (itemError) throw itemError;
+      const { error: itemsError } = await supabase
+        .from("booking_items")
+        .insert(bookingItems);
+
+      if (itemsError) throw itemsError;
 
       toast({
         title: "Booking submitted!",
         description: "You will receive an invoice via email shortly.",
       });
 
-      // Navigate back to home after submission
+      // Clear cart and navigate
+      clearCart();
       setTimeout(() => {
         navigate("/");
       }, 2000);
@@ -264,79 +273,75 @@ const Checkout = () => {
             {/* Order Summary */}
             <div>
               <div className="bg-card border border-border rounded-lg p-6 sticky top-24">
-                <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
+                <h2 className="text-xl font-semibold mb-4">Order Summary ({items.length} items)</h2>
 
-                <div className="space-y-4">
-                  {/* Item Details */}
-                  <div className="border-b border-border pb-4">
-                    <div className="flex gap-4">
-                      <img
-                        src={bookingData.image}
-                        alt={bookingData.name}
-                        className="w-20 h-20 object-cover rounded-lg"
-                      />
-                      <div className="flex-1">
-                        <h3 className="font-semibold">{bookingData.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Quantity: {bookingData.quantity}
-                        </p>
+                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                  {items.map((item, index) => (
+                    <div key={`${item.id}-${index}`} className="border-b border-border pb-4">
+                      <div className="flex gap-4">
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-16 h-16 object-cover rounded-lg"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold truncate">{item.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Qty: {item.quantity} × {item.rentalDays} days
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(item.pickupDate, "MMM d")} - {format(item.returnDate, "MMM d")}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-primary">₵{item.totalPrice.toFixed(2)}</p>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => removeItem(item.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ))}
+                </div>
 
-                  {/* Rental Details */}
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Daily Rate:</span>
-                      <span className="font-medium">₵{bookingData.dailyPrice}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Quantity:</span>
-                      <span className="font-medium">{bookingData.quantity}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Rental Days:</span>
-                      <span className="font-medium">{bookingData.rentalDays} days</span>
-                    </div>
+                {/* Dates */}
+                <div className="border-t border-b border-border py-4 mt-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Pickup Date:</span>
+                    <span className="font-medium">
+                      {format(pickupDate, "PPP")}
+                    </span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Return Date:</span>
+                    <span className="font-medium">
+                      {format(returnDate, "PPP")}
+                    </span>
+                  </div>
+                </div>
 
-                  {/* Dates */}
-                  <div className="border-t border-b border-border py-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Pickup Date:</span>
-                      <span className="font-medium">
-                        {format(new Date(bookingData.pickupDate), "PPP")}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Return Date:</span>
-                      <span className="font-medium">
-                        {format(new Date(bookingData.returnDate), "PPP")}
-                      </span>
-                    </div>
+                {/* Total */}
+                <div className="pt-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-semibold">Total Cost:</span>
+                    <span className="text-2xl font-bold text-primary">
+                      ₵{totalCost.toFixed(2)}
+                    </span>
                   </div>
+                </div>
 
-                  {/* Total */}
-                  <div className="pt-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-semibold">Total Cost:</span>
-                      <span className="text-2xl font-bold text-primary">
-                        ₵{bookingData.totalPrice.toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      (₵{bookingData.dailyPrice} × {bookingData.quantity} × {bookingData.rentalDays} days)
-                    </p>
-                  </div>
-
-                  <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-                    <p className="font-medium mb-1">Next Steps:</p>
-                    <ol className="list-decimal list-inside space-y-1">
-                      <li>You'll receive an invoice via email and SMS</li>
-                      <li>Make payment using the provided methods</li>
-                      <li>Receive a receipt after successful payment</li>
-                    </ol>
-                  </div>
+                <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground mt-4">
+                  <p className="font-medium mb-1">Next Steps:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>You'll receive an invoice via email and SMS</li>
+                    <li>Make payment using the provided methods</li>
+                    <li>Receive a receipt after successful payment</li>
+                  </ol>
                 </div>
               </div>
             </div>
