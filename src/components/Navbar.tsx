@@ -31,9 +31,11 @@ const Navbar = () => {
             <Link to="/contact" className="text-foreground hover:text-primary transition-colors">
               Contact
             </Link>
-            <Button className="bg-gradient-warm hover:opacity-90 transition-opacity">
-              Book Now
-            </Button>
+            <Link to="/catalog">
+              <Button className="bg-gradient-warm hover:opacity-90 transition-opacity">
+                Book Now
+              </Button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -78,9 +80,11 @@ const Navbar = () => {
               >
                 Contact
               </Link>
-              <Button className="bg-gradient-warm hover:opacity-90 transition-opacity w-full">
-                Book Now
-              </Button>
+              <Link to="/catalog" onClick={() => setIsOpen(false)}>
+                <Button className="bg-gradient-warm hover:opacity-90 transition-opacity w-full">
+                  Book Now
+                </Button>
+              </Link>
             </div>
           </div>
         )}
