@@ -47,26 +47,50 @@ const Checkout = () => {
     totalPrice: number;
   }[]>([]);
 
+  // Filter out items with invalid UUIDs (old cached items)
+  const isValidUUID = (id: string) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id);
+  };
+
+  const validItems = items.filter(item => isValidUUID(item.id));
+  const hasInvalidItems = items.length > validItems.length;
+
   useEffect(() => {
-    if (items.length === 0 && !submittedBooking) {
+    // If there are invalid items, clear the cart and redirect
+    if (hasInvalidItems && validItems.length === 0 && !submittedBooking) {
+      clearCart();
+      toast({
+        title: "Cart updated",
+        description: "Your cart contained outdated items. Please re-add items from the catalog.",
+        variant: "destructive",
+      });
+      navigate("/catalog");
+    } else if (items.length === 0 && !submittedBooking) {
       navigate("/catalog");
     }
-  }, [items.length, navigate, submittedBooking]);
+  }, [items.length, navigate, submittedBooking, hasInvalidItems, validItems.length, clearCart, toast]);
 
   if (items.length === 0 && !submittedBooking) {
     return null;
   }
 
+  // Show warning if some items were invalid
+  if (hasInvalidItems && validItems.length > 0) {
+    // Remove invalid items from cart
+    items.filter(item => !isValidUUID(item.id)).forEach(item => removeItem(item.id));
+  }
+
   // Get the earliest pickup date and latest return date from all items
-  const pickupDate = items.reduce((earliest, item) => 
+  const pickupDate = items.length > 0 ? items.reduce((earliest, item) => 
     !earliest || item.pickupDate < earliest ? item.pickupDate : earliest, 
     items[0]?.pickupDate
-  );
+  ) : new Date();
   
-  const returnDate = items.reduce((latest, item) => 
+  const returnDate = items.length > 0 ? items.reduce((latest, item) => 
     !latest || item.returnDate > latest ? item.returnDate : latest, 
     items[0]?.returnDate
-  );
+  ) : new Date();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
