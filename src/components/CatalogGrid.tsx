@@ -2,27 +2,89 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Loader2 } from "lucide-react";
 import { RentalItem } from "@/types/rental";
-import { rentalItems } from "@/data/rentalItems";
 import BookingDialog from "./BookingDialog";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import chairsImg from "@/assets/chairs.jpg";
+import tablesImg from "@/assets/tables.jpg";
+import canopyImg from "@/assets/canopy.jpg";
+import matImg from "@/assets/mat.jpg";
 
 interface CatalogGridProps {
   category?: string;
 }
 
+// Map category to default image
+const getCategoryImage = (category: string): string => {
+  switch (category) {
+    case "chair":
+      return chairsImg;
+    case "table":
+      return tablesImg;
+    case "canopy":
+      return canopyImg;
+    case "mat":
+      return matImg;
+    default:
+      return chairsImg;
+  }
+};
+
 const CatalogGrid = ({ category }: CatalogGridProps) => {
   const [selectedItem, setSelectedItem] = useState<RentalItem | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const filteredItems = category
-    ? rentalItems.filter((item) => item.category === category)
-    : rentalItems;
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["rental-items", category],
+    queryFn: async () => {
+      let query = supabase
+        .from("rental_items")
+        .select("*")
+        .eq("is_active", true);
+      
+      if (category) {
+        query = query.eq("category", category);
+      }
+
+      const { data, error } = await query.order("name");
+      
+      if (error) throw error;
+      
+      // Transform database items to RentalItem format
+      return data.map((item): RentalItem => ({
+        id: item.id,
+        name: item.name,
+        category: item.category as "chair" | "table" | "canopy" | "mat",
+        description: item.description || "",
+        dailyPrice: Number(item.daily_price),
+        image: item.image_url || getCategoryImage(item.category),
+        availableQuantity: item.available_quantity,
+      }));
+    },
+  });
 
   const handleSelectItem = (item: RentalItem) => {
     setSelectedItem(item);
     setDialogOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        No items available in this category.
+      </div>
+    );
+  }
 
   return (
     <>
@@ -32,7 +94,7 @@ const CatalogGrid = ({ category }: CatalogGridProps) => {
         onOpenChange={setDialogOpen}
       />
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {filteredItems.map((item) => (
+      {items.map((item) => (
         <Card
           key={item.id}
           className="overflow-hidden hover:shadow-lg transition-all duration-300 bg-gradient-card border-border group"
