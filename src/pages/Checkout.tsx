@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useCart } from "@/contexts/CartContext";
+import InvoicePreview from "@/components/InvoicePreview";
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -26,14 +27,33 @@ const Checkout = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+  const [submittedBooking, setSubmittedBooking] = useState<{
+    id: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    pickupDate: Date;
+    returnDate: Date;
+    pickupMethod: string;
+    deliveryAddress?: string;
+    totalCost: number;
+  } | null>(null);
+  const [submittedItems, setSubmittedItems] = useState<{
+    name: string;
+    quantity: number;
+    dailyPrice: number;
+    rentalDays: number;
+    totalPrice: number;
+  }[]>([]);
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (items.length === 0 && !submittedBooking) {
       navigate("/catalog");
     }
-  }, [items.length, navigate]);
+  }, [items.length, navigate, submittedBooking]);
 
-  if (items.length === 0) {
+  if (items.length === 0 && !submittedBooking) {
     return null;
   }
 
@@ -131,16 +151,71 @@ const Checkout = () => {
 
       if (itemsError) throw itemsError;
 
-      toast({
-        title: "Booking submitted!",
-        description: "You will receive an invoice via email shortly.",
+      // Send invoice email
+      try {
+        const { error: emailError } = await supabase.functions.invoke("send-booking-email", {
+          body: {
+            type: "invoice",
+            booking: {
+              id: booking.id,
+              customer_name: formData.customerName,
+              customer_email: formData.customerEmail,
+              customer_phone: formData.customerPhone,
+              pickup_date: format(pickupDate, "yyyy-MM-dd"),
+              return_date: format(returnDate, "yyyy-MM-dd"),
+              pickup_method: formData.pickupMethod,
+              delivery_address: formData.pickupMethod === "delivery" ? formData.pickupLocation : null,
+              total_cost: totalCost,
+            },
+            items: items.map((item) => ({
+              item_name: item.name,
+              quantity: item.quantity,
+              daily_price: item.dailyPrice,
+              rental_days: item.rentalDays,
+              subtotal: item.totalPrice,
+            })),
+          },
+        });
+
+        if (emailError) {
+          console.error("Email error:", emailError);
+        }
+      } catch (emailErr) {
+        console.error("Failed to send invoice email:", emailErr);
+      }
+
+      // Store items for invoice preview before clearing cart
+      setSubmittedItems(items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        dailyPrice: item.dailyPrice,
+        rentalDays: item.rentalDays,
+        totalPrice: item.totalPrice,
+      })));
+
+      // Store booking data for invoice preview
+      setSubmittedBooking({
+        id: booking.id,
+        customerName: formData.customerName,
+        customerEmail: formData.customerEmail,
+        customerPhone: formData.customerPhone,
+        pickupDate,
+        returnDate,
+        pickupMethod: formData.pickupMethod,
+        deliveryAddress: formData.pickupMethod === "delivery" ? formData.pickupLocation : undefined,
+        totalCost,
       });
 
-      // Clear cart and navigate
+      toast({
+        title: "Booking submitted!",
+        description: "Invoice has been sent to your email.",
+      });
+
+      // Show invoice preview
+      setShowInvoicePreview(true);
+
+      // Clear cart after storing items
       clearCart();
-      setTimeout(() => {
-        navigate("/");
-      }, 2000);
     } catch (error) {
       console.error("Error submitting booking:", error);
       toast({
@@ -151,6 +226,11 @@ const Checkout = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCloseInvoice = () => {
+    setShowInvoicePreview(false);
+    navigate("/");
   };
 
   return (
@@ -350,6 +430,16 @@ const Checkout = () => {
       </main>
 
       <Footer />
+
+      {/* Invoice Preview Modal */}
+      {submittedBooking && (
+        <InvoicePreview
+          open={showInvoicePreview}
+          onClose={handleCloseInvoice}
+          booking={submittedBooking}
+          items={submittedItems}
+        />
+      )}
     </div>
   );
 };
